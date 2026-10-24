@@ -50,7 +50,11 @@ async function getLogsOnce(fromBlock, toBlock, topic) {
   if (!response.ok) throw new Error(`Etherscan HTTP ${response.status} for blocks ${fromBlock}-${toBlock}`);
   const body = await response.json();
   if (body.status === "1" && Array.isArray(body.result)) return body.result;
-  if (body.status === "0" && /no records found/i.test(String(body.result))) return [];
+  if (
+    body.status === "0" &&
+    (/no records found/i.test(String(body.message)) ||
+      /no records found/i.test(String(body.result)))
+  ) return [];
   const diagnostic = {
     status: body.status ?? null,
     message: body.message ?? null,
