@@ -23,3 +23,6 @@ pnpm-debug.log*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local Project 2 audit evidence bundles (may contain point-in-time on-chain data)
+audit-results/
