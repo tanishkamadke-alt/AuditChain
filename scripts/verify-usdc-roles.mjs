@@ -26,7 +26,7 @@ const contract = new ethers.Contract(PROXY, ABI, provider);
 
 // EIP-1967 slots: bytes32(uint256(keccak256(label)) - 1)
 const IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-const ADMIN_SLOT = "0xb53127684a568b3173ae13b9f8a6016e0190000000000000000000000000000";
+const ADMIN_SLOT = "0x0b53127684a568b3173ae13b9f8a6016e0190000000000000000000000000000";
 
 function addressFromStorage(word) {
   return ethers.getAddress("0x" + word.slice(-40));
