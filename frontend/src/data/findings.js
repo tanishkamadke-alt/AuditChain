@@ -32,9 +32,9 @@ export const findings = [
   {
     id: "I-02", projectId: 2, severity: "Informational",
     title: "Upgradeable Proxy Architecture", status: "Open",
-    description: "The FiatTokenProxy forwards calls to an implementation and allows implementation upgrades through a privileged proxy administrator. Upgradeability is a trust assumption, not by itself a confirmed vulnerability.",
-    recommendation: "Verify the current implementation and proxy administrator, review upgrade events, and monitor implementation changes and administrative key controls.",
-    evidence: "Circle's published source defines FiatTokenProxy as an AdminUpgradeabilityProxy and documents upgrade administration."
+    description: "Source review confirms that upgradeTo, upgradeToAndCall, and changeAdmin are guarded by the proxy's ifAdmin authorization modifier. The implementation setter also rejects addresses without deployed contract code. Upgradeability remains a trust assumption because the authorized proxy administrator can replace token logic; no authorization bypass has been established by this source review.",
+    recommendation: "Monitor Upgraded and AdminChanged events, independently validate implementation changes before relying on them, and review the proxy administrator's key-management and governance controls. Treat this as an informational trust-model observation unless further evidence demonstrates a concrete weakness.",
+    evidence: "Circle AdminUpgradeabilityProxy.sol: ifAdmin checks msg.sender against the stored proxy admin; upgradeTo and upgradeToAndCall are admin-gated, changeAdmin rejects the zero address, and UpgradeabilityProxy._setImplementation checks Address.isContract(newImplementation). Live read-only snapshot at Arbitrum block 517805160 reported implementation 0x86E721b43d4ECFa71119Dd38c0f938A75Fdb57B3 (matching expected) and proxy admin 0x2E0A67588cfBCAD40f9e4DD76052436190A77a68."
   },
   {
     id: "I-03", projectId: 2, severity: "Informational",
