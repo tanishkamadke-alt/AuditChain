@@ -5,12 +5,13 @@
  *   node --env-file=.env scripts/verify-usdc-minters.mjs
  *
  * Optional:
- *   START_BLOCK=100000000
- *   CHUNK_SIZE=5000 (Etherscan Logs API supports up to 5000 blocks per request)
+ *   RECENT_BLOCK_WINDOW=100000 (default scan window when START_BLOCK is omitted)
+ *   START_BLOCK=...           (explicit start; scans from there to the current tip)
+ *   CHUNK_SIZE=5000           (maximum initial chunk; API results are split if capped)
  *
- * The scan is bounded by START_BLOCK and the current chain tip. For complete
- * history, START_BLOCK must be set to the verified proxy deployment block.
- * This script never submits transactions.
+ * By default, this scans only a recent window, not the complete deployment history.
+ * For complete history, START_BLOCK must be set to the verified proxy deployment
+ * block. This script never submits transactions.
  */
 import { ethers } from "ethers";
 
@@ -18,8 +19,10 @@ const API_KEY = process.env.ARBISCAN_API_KEY || process.env.ETHERSCAN_API_KEY;
 const API_URL = "https://api.etherscan.io/v2/api";
 const TOKEN = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
 const EXPECTED_IMPLEMENTATION = "0x86E721b43D4ecFA71119dd38c0F938A75FDB57B3";
-const START_BLOCK = Number(process.env.START_BLOCK || 100000000);
+const START_BLOCK_ENV = process.env.START_BLOCK;
+const RECENT_BLOCK_WINDOW = Number(process.env.RECENT_BLOCK_WINDOW || 100000);
 const CHUNK_SIZE = Number(process.env.CHUNK_SIZE || 5000);
+const API_DELAY_MS = 350;
 const RPC_URL = process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc";
 const provider = new ethers.JsonRpcProvider(RPC_URL, 42161, { staticNetwork: true });
 
@@ -33,19 +36,14 @@ const ABI = [
 const CONFIGURED_TOPIC = ethers.id("MinterConfigured(address,uint256)");
 const REMOVED_TOPIC = ethers.id("MinterRemoved(address)");
 
-async function getLogs(fromBlock, toBlock, topic) {
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function getLogsOnce(fromBlock, toBlock, topic) {
   const url = new URL(API_URL);
   for (const [key, value] of Object.entries({
-    chainid: "42161",
-    module: "logs",
-    action: "getLogs",
-    address: TOKEN,
-    fromBlock: String(fromBlock),
-    toBlock: String(toBlock),
-    topic0: topic,
-    page: "1",
-    offset: "1000",
-    apikey: API_KEY
+    chainid: "42161", module: "logs", action: "getLogs", address: TOKEN,
+    fromBlock: String(fromBlock), toBlock: String(toBlock), topic0: topic,
+    page: "1", offset: "1000", apikey: API_KEY
   })) url.searchParams.set(key, value);
 
   const response = await fetch(url);
@@ -54,6 +52,25 @@ async function getLogs(fromBlock, toBlock, topic) {
   if (body.status === "1" && Array.isArray(body.result)) return body.result;
   if (body.status === "0" && /no records found/i.test(String(body.result))) return [];
   throw new Error(`Etherscan Logs API error for blocks ${fromBlock}-${toBlock}: ${body.result || body.message || "Unknown error"}`);
+}
+
+async function getLogs(fromBlock, toBlock, topic) {
+  await sleep(API_DELAY_MS);
+  const logs = await getLogsOnce(fromBlock, toBlock, topic);
+
+  // Etherscan caps a query at 1000 results. Split saturated ranges to avoid
+  // silently treating a truncated response as complete.
+  if (logs.length >= 1000) {
+    if (fromBlock === toBlock) {
+      throw new Error(`At least 1000 matching events in block ${fromBlock}; cannot safely page this single-block range.`);
+    }
+    const midpoint = Math.floor((fromBlock + toBlock) / 2);
+    console.error(`API result cap reached for blocks ${fromBlock}-${toBlock}; splitting range.`);
+    const left = await getLogs(fromBlock, midpoint, topic);
+    const right = await getLogs(midpoint + 1, toBlock, topic);
+    return left.concat(right);
+  }
+  return logs;
 }
 
 function rememberEvent(seen, log, eventName) {
@@ -76,8 +93,15 @@ function rememberEvent(seen, log, eventName) {
 
 async function main() {
   if (!API_KEY) throw new Error("Missing API key. Set ARBISCAN_API_KEY in .env; do not commit or share that file.");
-  if (!Number.isSafeInteger(START_BLOCK) || START_BLOCK < 0) throw new Error("START_BLOCK must be a non-negative integer.");
-  if (!Number.isSafeInteger(CHUNK_SIZE) || CHUNK_SIZE < 1 || CHUNK_SIZE > 5000) throw new Error("CHUNK_SIZE must be between 1 and 5000.");
+  if (START_BLOCK_ENV !== undefined && (!/^\d+$/.test(START_BLOCK_ENV) || !Number.isSafeInteger(Number(START_BLOCK_ENV)))) {
+    throw new Error("START_BLOCK must be a non-negative integer.");
+  }
+  if (!Number.isSafeInteger(RECENT_BLOCK_WINDOW) || RECENT_BLOCK_WINDOW < 1) {
+    throw new Error("RECENT_BLOCK_WINDOW must be a positive integer.");
+  }
+  if (!Number.isSafeInteger(CHUNK_SIZE) || CHUNK_SIZE < 1 || CHUNK_SIZE > 5000) {
+    throw new Error("CHUNK_SIZE must be between 1 and 5000.");
+  }
 
   const [chainIdHex, latestHex] = await Promise.all([
     provider.send("eth_chainId", []), provider.send("eth_blockNumber", [])
@@ -85,7 +109,12 @@ async function main() {
   const chainId = Number(BigInt(chainIdHex));
   const latestBlock = Number(BigInt(latestHex));
   if (chainId !== 42161) throw new Error(`Wrong RPC chain ID: ${chainId}`);
-  if (START_BLOCK > latestBlock) throw new Error("START_BLOCK is newer than the current chain tip.");
+
+  const isFullStartExplicit = START_BLOCK_ENV !== undefined;
+  const startBlock = isFullStartExplicit
+    ? Number(START_BLOCK_ENV)
+    : Math.max(0, latestBlock - RECENT_BLOCK_WINDOW + 1);
+  if (startBlock > latestBlock) throw new Error("START_BLOCK is newer than the current chain tip.");
 
   const token = new ethers.Contract(TOKEN, ABI, provider);
   const [implementation, masterMinter, paused] = await Promise.all([
@@ -96,11 +125,10 @@ async function main() {
   let configuredEvents = 0;
   let removedEvents = 0;
   let scannedBlocks = 0;
-  const totalChunks = Math.ceil((latestBlock - START_BLOCK + 1) / CHUNK_SIZE);
+  const totalChunks = Math.ceil((latestBlock - startBlock + 1) / CHUNK_SIZE);
 
-  for (let fromBlock = START_BLOCK, chunk = 0; fromBlock <= latestBlock; fromBlock += CHUNK_SIZE, chunk++) {
+  for (let fromBlock = startBlock, chunk = 0; fromBlock <= latestBlock; fromBlock += CHUNK_SIZE, chunk++) {
     const toBlock = Math.min(fromBlock + CHUNK_SIZE - 1, latestBlock);
-    // Separate topic queries respect the explorer's indexed Logs API contract.
     const [configured, removed] = await Promise.all([
       getLogs(fromBlock, toBlock, CONFIGURED_TOPIC),
       getLogs(fromBlock, toBlock, REMOVED_TOPIC)
@@ -111,11 +139,9 @@ async function main() {
     removedEvents += removed.length;
     scannedBlocks += toBlock - fromBlock + 1;
 
-    if (chunk % 20 === 0 || toBlock === latestBlock) {
+    if (chunk % 10 === 0 || toBlock === latestBlock) {
       console.error(`Chunk ${chunk + 1}/${totalChunks}: through block ${toBlock}; ${seen.size} unique addresses observed.`);
     }
-    // Gentle pacing for free-tier API limits.
-    await new Promise(resolve => setTimeout(resolve, 250));
   }
 
   const observedMinters = [];
@@ -124,8 +150,7 @@ async function main() {
       token.isMinter(entry.address), token.minterAllowance(entry.address)
     ]);
     observedMinters.push({
-      ...entry,
-      currentlyAuthorized,
+      ...entry, currentlyAuthorized,
       remainingAllowanceRaw: allowance.toString(),
       remainingAllowanceUSDC: ethers.formatUnits(allowance, 6)
     });
@@ -135,21 +160,22 @@ async function main() {
 
   console.log(JSON.stringify({
     network: "Arbitrum One", chainId, token: TOKEN,
-    startBlock: START_BLOCK, endBlock: latestBlock,
-    checkedAt: new Date().toISOString(), scannedBlocks,
+    scanRangeMode: isFullStartExplicit ? "explicit-start-block" : "recent-window",
+    startBlock, endBlock: latestBlock, checkedAt: new Date().toISOString(), scannedBlocks,
     scanIsCompleteFromDeployment: false,
-    implementation,
-    expectedImplementation: EXPECTED_IMPLEMENTATION,
+    implementation, expectedImplementation: EXPECTED_IMPLEMENTATION,
     implementationMatchesExpected: implementation.toLowerCase() === EXPECTED_IMPLEMENTATION.toLowerCase(),
     masterMinter, paused, configuredEvents, removedEvents,
     uniqueMinterAddressesObserved: seen.size,
     currentAuthorizedMinterCountInObservedHistory: observedMinters.filter(x => x.currentlyAuthorized).length,
     observedMinters,
     limitations: [
-      "Only events from START_BLOCK through endBlock were scanned.",
-      "Set START_BLOCK to the verified proxy deployment block for full event-history coverage.",
-      "An address configured before START_BLOCK and never reconfigured afterward will not be discovered.",
-      "The Etherscan Logs API returns at most 1000 results per request; if a 5000-block chunk reaches that limit, narrow CHUNK_SIZE and rerun.",
+      isFullStartExplicit
+        ? "An explicit start block was supplied; completeness depends on using the verified proxy deployment block."
+        : "Default scan covers only the most recent RECENT_BLOCK_WINDOW blocks, not the complete deployment history.",
+      "An address configured before the scan start and never reconfigured afterward will not be discovered.",
+      "Ranges returning 1000 or more logs are recursively split to avoid silently accepting the API result cap.",
+      "Current authorization and allowance are queried at the current chain tip, while events describe the selected historical range.",
       "Read-only state snapshot; no transactions are sent and this is not proof of absence of vulnerabilities."
     ]
   }, null, 2));
