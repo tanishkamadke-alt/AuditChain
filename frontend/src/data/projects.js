@@ -6,6 +6,8 @@ export const projects = [
     contractAddress: "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
     network: "Arbitrum",
     status: "Completed",
+    compilerVersion: "Solidity 0.6.12",
+    reviewSections: { sourceCode: "Reviewed", architecture: "Reviewed", privilegedFunctions: "Reviewed" },
     findings: {
       critical: 0,
       high: 0,
@@ -20,14 +22,15 @@ export const projects = [
     token: "USDC",
     contractAddress: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
     network: "Arbitrum",
-    status: "Pending",
-    findings: {
-      critical: 0,
-      high: 0,
-      medium: 0,
-      low: 0,
-      informational: 0,
+    status: "In Progress",
+    compilerVersion: "Solidity 0.6.12",
+    implementationAddress: "0x86E721b43D4ecFA71119dd38c0F938A75FDB57B3",
+    reviewSections: {
+      sourceCode: "Reviewed",
+      architecture: "Reviewed",
+      privilegedFunctions: "In Progress",
     },
+    findings: { critical: 0, high: 0, medium: 0, low: 0, informational: 3 },
   },
   {
     id: 3,
@@ -36,6 +39,8 @@ export const projects = [
     contractAddress: "0x6491c05a82219b8d1479057361ff1654749b876b",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
@@ -51,6 +56,8 @@ export const projects = [
     contractAddress: "0x25118290e6a5f4139381d072181157035864099d",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
@@ -66,6 +73,8 @@ export const projects = [
     contractAddress: "0x995c235521820f2637303ca1970c7c044583df44",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
@@ -81,6 +90,8 @@ export const projects = [
     contractAddress: "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
@@ -96,6 +107,8 @@ export const projects = [
     contractAddress: "0xddb46999f8891663a8f2828d25298f70416d7610",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
@@ -111,6 +124,8 @@ export const projects = [
     contractAddress: "0x940098b108fb7d0a7e374f6eded7760787464609",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
@@ -126,6 +141,8 @@ export const projects = [
     contractAddress: "0xf97f4df75117a78c1a5a0dbb814af92458539fb",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
@@ -141,6 +158,8 @@ export const projects = [
     contractAddress: "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
     network: "Arbitrum",
     status: "Pending",
+    compilerVersion: "Not reviewed",
+    reviewSections: { sourceCode: "Pending", architecture: "Pending", privilegedFunctions: "Pending" },
     findings: {
       critical: 0,
       high: 0,
