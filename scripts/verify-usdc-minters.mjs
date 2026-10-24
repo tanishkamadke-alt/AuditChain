@@ -47,24 +47,58 @@ async function getLogsOnce(fromBlock, toBlock, topic) {
     page: "1", offset: "1000", apikey: API_KEY
   })) url.searchParams.set(key, value);
 
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Etherscan HTTP ${response.status} for blocks ${fromBlock}-${toBlock}`);
-  const body = await response.json();
-  if (body.status === "1" && Array.isArray(body.result)) return body.result;
-  if (
-    body.status === "0" &&
-    (/no records found/i.test(String(body.message)) ||
-      /no records found/i.test(String(body.result)))
-  ) return [];
-  const diagnostic = {
-    status: body.status ?? null,
-    message: body.message ?? null,
-    result: body.result ?? null,
-    ...(body.code !== undefined ? { code: body.code } : {})
-  };
-  throw new Error(
-    `Etherscan Logs API error for blocks ${fromBlock}-${toBlock}: ${JSON.stringify(diagnostic)}`
-  );
+  // Retry transient network failures, HTTP 429s, and Etherscan rate-limit responses.
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (response.status === 429 || response.status >= 500) {
+        if (attempt < maxAttempts) {
+          const delay = Math.min(15000, 1000 * (2 ** (attempt - 1)));
+          console.error(`Etherscan HTTP ${response.status}; retrying in ${delay}ms (attempt ${attempt}/${maxAttempts}).`);
+          await sleep(delay);
+          continue;
+        }
+        throw new Error(`Etherscan HTTP ${response.status} after ${maxAttempts} attempts for blocks ${fromBlock}-${toBlock}`);
+      }
+      if (!response.ok) throw new Error(`Etherscan HTTP ${response.status} for blocks ${fromBlock}-${toBlock}`);
+
+      const body = await response.json();
+      if (body.status === "1" && Array.isArray(body.result)) return body.result;
+      if (
+        body.status === "0" &&
+        (/no records found/i.test(String(body.message)) ||
+          /no records found/i.test(String(body.result)))
+      ) return [];
+
+      const diagnostic = {
+        status: body.status ?? null,
+        message: body.message ?? null,
+        result: body.result ?? null,
+        ...(body.code !== undefined ? { code: body.code } : {})
+      };
+      const apiError = JSON.stringify(diagnostic);
+      if (/rate limit|max calls per sec|temporarily unavailable/i.test(apiError) && attempt < maxAttempts) {
+        const delay = Math.min(15000, 1000 * (2 ** (attempt - 1)));
+        console.error(`Etherscan API limit/transient response; retrying in ${delay}ms (attempt ${attempt}/${maxAttempts}).`);
+        await sleep(delay);
+        continue;
+      }
+      throw new Error(`Etherscan Logs API error for blocks ${fromBlock}-${toBlock}: ${apiError}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isTransient = error?.name === "TypeError" || error?.name === "TimeoutError" ||
+        /fetch failed|network|timed out|timeout/i.test(message);
+      if (isTransient && attempt < maxAttempts) {
+        const delay = Math.min(15000, 1000 * (2 ** (attempt - 1)));
+        console.error(`Temporary network failure; retrying in ${delay}ms (attempt ${attempt}/${maxAttempts}).`);
+        await sleep(delay);
+        continue;
+      }
+      throw new Error(`Log query failed for blocks ${fromBlock}-${toBlock}: ${message}`);
+    }
+  }
+  throw new Error(`Log query failed for blocks ${fromBlock}-${toBlock} after ${maxAttempts} attempts.`);
 }
 
 async function getLogs(fromBlock, toBlock, topic) {
