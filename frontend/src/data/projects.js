@@ -28,7 +28,7 @@ export const projects = [
     reviewSections: {
       sourceCode: "Reviewed",
       architecture: "Reviewed",
-      privilegedFunctions: "In Progress",
+      privilegedFunctions: "Reviewed",
     },
     findings: { critical: 0, high: 0, medium: 0, low: 0, informational: 3 },
   },
