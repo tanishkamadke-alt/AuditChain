@@ -51,7 +51,15 @@ async function getLogsOnce(fromBlock, toBlock, topic) {
   const body = await response.json();
   if (body.status === "1" && Array.isArray(body.result)) return body.result;
   if (body.status === "0" && /no records found/i.test(String(body.result))) return [];
-  throw new Error(`Etherscan Logs API error for blocks ${fromBlock}-${toBlock}: ${body.result || body.message || "Unknown error"}`);
+  const diagnostic = {
+    status: body.status ?? null,
+    message: body.message ?? null,
+    result: body.result ?? null,
+    ...(body.code !== undefined ? { code: body.code } : {})
+  };
+  throw new Error(
+    `Etherscan Logs API error for blocks ${fromBlock}-${toBlock}: ${JSON.stringify(diagnostic)}`
+  );
 }
 
 async function getLogs(fromBlock, toBlock, topic) {
