@@ -7,7 +7,7 @@
  * Optional environment variables:
  *   START_BLOCK=100000000  (default is a bounded historical scan; set to the
  *                           verified deployment block for complete history)
- *   CHUNK_SIZE=1000000     (blocks per eth_getLogs request; lower it if RPC rejects the range)
+ *   CHUNK_SIZE=5000        (blocks per eth_getLogs request; lower it if RPC rejects the range)
  *   ARBITRUM_RPC_URL=https://arb1.arbitrum.io/rpc
  *
  * This script scans MinterConfigured and MinterRemoved events, then queries
@@ -24,7 +24,7 @@ const RPC_URL = process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc";
 const TOKEN = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
 const EXPECTED_IMPLEMENTATION = "0x86E721b43D4ecFA71119dd38c0F938A75FDB57B3";
 const START_BLOCK = Number(process.env.START_BLOCK || 100000000);
-const CHUNK_SIZE = Number(process.env.CHUNK_SIZE || 1000000);
+const CHUNK_SIZE = Number(process.env.CHUNK_SIZE || 5000);
 const provider = new ethers.JsonRpcProvider(RPC_URL, 42161, { staticNetwork: true });
 
 const ABI = [
@@ -71,12 +71,28 @@ async function main() {
   // Chunked scanning avoids requesting the entire chain's log history at once.
   for (let fromBlock = START_BLOCK; fromBlock <= latestBlock; fromBlock += CHUNK_SIZE) {
     const toBlock = Math.min(fromBlock + CHUNK_SIZE - 1, latestBlock);
-    const logs = await provider.send("eth_getLogs", [{
-      address: TOKEN,
-      fromBlock: ethers.toQuantity(fromBlock),
-      toBlock: ethers.toQuantity(toBlock),
-      topics: [[configuredTopic, removedTopic]]
-    }]);
+    let logs;
+    try {
+      logs = await provider.send("eth_getLogs", [{
+        address: TOKEN,
+        fromBlock: ethers.toQuantity(fromBlock),
+        toBlock: ethers.toQuantity(toBlock),
+        topics: [[configuredTopic, removedTopic]]
+      }]);
+    } catch (error) {
+      console.error(JSON.stringify({
+        message: "eth_getLogs request failed",
+        fromBlock,
+        toBlock,
+        chunkSize: CHUNK_SIZE,
+        rpcUrl: RPC_URL,
+        errorCode: error.code ?? error.error?.code ?? null,
+        errorMessage: error.shortMessage || error.message || String(error),
+        rpcError: error.info?.error?.message || error.error?.message || null,
+        suggestion: "Retry with a smaller CHUNK_SIZE, e.g. $env:CHUNK_SIZE='1000'."
+      }, null, 2));
+      throw error;
+    }
 
     for (const log of logs) {
       const topic = log.topics[0].toLowerCase();
