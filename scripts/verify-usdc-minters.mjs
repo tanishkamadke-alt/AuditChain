@@ -22,7 +22,8 @@ const EXPECTED_IMPLEMENTATION = "0x86E721b43D4ecFA71119dd38c0F938A75FDB57B3";
 const START_BLOCK_ENV = process.env.START_BLOCK;
 const RECENT_BLOCK_WINDOW = Number(process.env.RECENT_BLOCK_WINDOW || 100000);
 const CHUNK_SIZE = Number(process.env.CHUNK_SIZE || 5000);
-const API_DELAY_MS = 350;
+// Keep paired event queries below the Etherscan Logs API rate limit.
+const API_DELAY_MS = 900;
 const RPC_URL = process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc";
 const provider = new ethers.JsonRpcProvider(RPC_URL, 42161, { staticNetwork: true });
 
