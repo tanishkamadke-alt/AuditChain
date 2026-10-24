@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { projects } from "../data/projects";
+import { findings } from "../data/findings";
 
 export default function AuditWorkspace() {
   const { projectId } = useParams();
@@ -277,7 +278,7 @@ export default function AuditWorkspace() {
               </p>
 
               <p className="mt-2 text-lg font-semibold text-white">
-                Solidity 0.6.12
+                {project.compilerVersion || "Not reviewed"}
               </p>
             </div>
 
@@ -323,8 +324,8 @@ export default function AuditWorkspace() {
                 <FileCode2 className="h-5 w-5" />
               </div>
 
-              <span className="text-[10px] font-medium text-emerald-400">
-                Reviewed
+              <span className={`text-[10px] font-medium ${(project.reviewSections?.sourceCode || (project.status === "Completed" ? "Reviewed" : "Pending")) === "Reviewed" ? "text-emerald-400" : "text-amber-400"}`}>
+                {project.reviewSections?.sourceCode || (project.status === "Completed" ? "Reviewed" : "Pending")}
               </span>
 
             </div>
@@ -359,8 +360,8 @@ export default function AuditWorkspace() {
                 <Network className="h-5 w-5" />
               </div>
 
-              <span className="text-[10px] font-medium text-emerald-400">
-                Reviewed
+              <span className={`text-[10px] font-medium ${(project.reviewSections?.architecture || (project.status === "Completed" ? "Reviewed" : "Pending")) === "Reviewed" ? "text-emerald-400" : "text-amber-400"}`}>
+                {project.reviewSections?.architecture || (project.status === "Completed" ? "Reviewed" : "Pending")}
               </span>
 
             </div>
@@ -395,8 +396,8 @@ export default function AuditWorkspace() {
                 <KeyRound className="h-5 w-5" />
               </div>
 
-              <span className="text-[10px] font-medium text-emerald-400">
-                Reviewed
+              <span className={`text-[10px] font-medium ${(project.reviewSections?.privilegedFunctions || (project.status === "Completed" ? "Reviewed" : "Pending")) === "Reviewed" ? "text-emerald-400" : "text-amber-400"}`}>
+                {project.reviewSections?.privilegedFunctions || (project.status === "Completed" ? "Reviewed" : "Pending")}
               </span>
 
             </div>
@@ -449,54 +450,35 @@ export default function AuditWorkspace() {
         </div>
 
         <div className="mt-5 space-y-3">
-
-  {project.findings.informational > 0 ? (
-    <div
-      className="
-        rounded-lg border border-slate-800
-        bg-slate-950/50 p-4
-        transition-all duration-200
-        hover:border-amber-500/30
-        hover:bg-amber-500/5
-      "
-    >
-      <div className="flex items-start gap-3">
-
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-
-        <div>
-          <p className="text-sm font-medium text-white">
-            Informational observations recorded
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            {project.findings.informational} informational
-            observation(s) are currently recorded for this project.
-          </p>
+          {findings.filter((finding) => finding.projectId === project.id).length > 0 ? (
+            findings.filter((finding) => finding.projectId === project.id).map((finding) => (
+              <div key={finding.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-4 transition-all duration-200 hover:border-amber-500/30 hover:bg-amber-500/5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <div>
+                      <p className="text-sm font-medium text-white">{finding.id} · {finding.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">{finding.description}</p>
+                      {finding.evidence && <p className="mt-2 text-xs leading-5 text-slate-500"><span className="font-semibold text-slate-400">Evidence: </span>{finding.evidence}</p>}
+                      <p className="mt-2 text-xs leading-5 text-slate-500"><span className="font-semibold text-cyan-400">Recommendation: </span>{finding.recommendation}</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-400">{finding.severity} · {finding.status}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+              <div className="flex items-center gap-3">
+                <Clock3 className="h-4 w-4 text-amber-400" />
+                <div>
+                  <p className="text-sm text-slate-300">{project.status === "Completed" ? "No findings recorded for this completed review." : "No findings recorded yet — this does not mean the contract is vulnerability-free."}</p>
+                  <p className="mt-1 text-xs text-slate-500">Findings will appear here as the review progresses.</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-
-      </div>
-    </div>
-  ) : (
-    <div
-      className="
-        rounded-lg border border-slate-800
-        bg-slate-950/50 p-4
-      "
-    >
-      <div className="flex items-center gap-3">
-
-        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-
-        <p className="text-sm text-slate-300">
-          No security findings recorded yet.
-        </p>
-
-      </div>
-    </div>
-  )}
-
-</div>
 </div>
         
       {/* AUDIT RESULT */}
@@ -533,7 +515,7 @@ export default function AuditWorkspace() {
             <p className="mt-2 max-w-3xl text-xs leading-5 text-slate-500">
                 {project.status === "Completed"
                     ? "The security review for this project has been completed."
-                    : "The security review for this project has not yet been completed."}
+                    : "This workspace shows the observations reviewed so far. The audit remains in progress; absence of a confirmed high-severity issue is not a guarantee that the contract is vulnerability-free."}
             </p>
 
           </div>
