@@ -7,7 +7,7 @@
  * Optional environment variables:
  *   START_BLOCK=100000000  (default is a bounded historical scan; set to the
  *                           verified deployment block for complete history)
- *   CHUNK_SIZE=100000      (blocks per eth_getLogs request)
+ *   CHUNK_SIZE=1000000     (blocks per eth_getLogs request; lower it if RPC rejects the range)
  *   ARBITRUM_RPC_URL=https://arb1.arbitrum.io/rpc
  *
  * This script scans MinterConfigured and MinterRemoved events, then queries
@@ -24,7 +24,7 @@ const RPC_URL = process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc";
 const TOKEN = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
 const EXPECTED_IMPLEMENTATION = "0x86E721b43D4ecFA71119dd38c0F938A75FDB57B3";
 const START_BLOCK = Number(process.env.START_BLOCK || 100000000);
-const CHUNK_SIZE = Number(process.env.CHUNK_SIZE || 100000);
+const CHUNK_SIZE = Number(process.env.CHUNK_SIZE || 1000000);
 const provider = new ethers.JsonRpcProvider(RPC_URL, 42161, { staticNetwork: true });
 
 const ABI = [
